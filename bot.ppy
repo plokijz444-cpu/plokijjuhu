@@ -1,0 +1,82 @@
+const { Client, GatewayIntentBits } = require('discord.js');
+const express = require('express'); // Render 호스팅 유지용
+
+const client = new Client({ 
+    intents: [
+        GatewayIntentBits.Guilds, 
+        GatewayIntentBits.GuildMessages, 
+        GatewayIntentBits.MessageContent
+    ] 
+});
+
+const PREFIX = '!';
+let goalPoint = 0;
+let currentPoint = 0;
+
+// --- 1. Render 호스팅 유지용 웹 서버 설정 ---
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.get('/', (req, res) => {
+    res.send('디스코드 봇이 정상 작동 중입니다!');
+});
+
+app.listen(PORT, () => {
+    console.log(`웹 서버가 포트 ${PORT}에서 대기 중입니다.`);
+});
+// ------------------------------------------
+
+client.on('ready', () => {
+    console.log(`${client.user.tag} 봇이 준비되었습니다!`);
+});
+
+client.on('messageCreate', async (message) => {
+    if (message.author.bot || !message.content.startsWith(PREFIX)) return;
+
+    const args = message.content.slice(PREFIX.length).trim().split(/ +/);
+    const command = args.shift().toLowerCase();
+
+    // 1. 목표 설정 명령어 (!목표설정 [숫자])
+    if (command === '목표설정') {
+        const target = parseInt(args[0]); // 안전하게 첫 번째 인자 가져오기
+
+        if (isNaN(target) || target <= 0) {
+            return message.reply('❌ 올바른 목표 포인트를 숫자로 입력해주세요. (예: !목표설정 1000)');
+        }
+
+        goalPoint = target;
+        return message.reply(`🎯 목표 포인트가 **${goalPoint.toLocaleString()}**으로 설정되었습니다!`);
+    }
+
+    // 2. 포인트 명령어 (!포인트 또는 !포인트 [숫자])
+    if (command === '포인트') {
+        if (goalPoint === 0) {
+            return message.reply('📢 먼저 `!목표설정 [숫자]` 명령어로 목표를 설정해주세요!');
+        }
+
+        const amount = parseInt(args[0]);
+
+        // 입력된 숫자가 없는 경우: 단순히 현재 포인트 현황을 알려줌
+        if (isNaN(amount)) {
+            return message.reply(`📌 현재 포인트는 **${currentPoint.toLocaleString()} / ${goalPoint.toLocaleString()}** 입니다.`);
+        }
+
+        // 입력된 숫자가 있는 경우: 포인트를 적립하고 현황을 보여줌
+        if (amount <= 0) {
+            return message.reply('❌ 추가할 포인트는 1점 이상이어야 합니다.');
+        }
+
+        currentPoint += amount;
+        
+        let response = `✨ **${amount.toLocaleString()} 포인트**가 적립되었습니다! (${currentPoint.toLocaleString()} / ${goalPoint.toLocaleString()})`;
+
+        if (currentPoint >= goalPoint) {
+            response += `\n\n🎉 **축하합니다! 설정한 목표(${goalPoint.toLocaleString()})를 달성했습니다!** 🥳`;
+        }
+
+        return message.reply(response);
+    }
+});
+
+// 환경 변수에서 토큰을 불러와 로그인
+client.login(process.env.DISCORD_TOKEN);
